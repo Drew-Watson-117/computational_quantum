@@ -2,11 +2,9 @@
 This module contains classes that define the initial conditions for the quantum system.
 """
 
-from math_utils import diff
 from torch import nn
 import torch
-
-#pylint: disable=invalid-name
+from ..math_utils import diff
 
 class InitialCondition:
     """

@@ -7,61 +7,13 @@ The training method is also implemented to optimize the neural network
 parameters based on the computed losses.
 """
 
-from enum import IntEnum
 import pandas as pd
 import numpy as np
 import torch
-from math_utils import diff
-from initial_conditions import InitialCondition
-from schrodinger import Schrodinger
-
-#pylint: disable=invalid-name
-
-class CartesianCoordinates(IntEnum):
-    """
-    Enumeration for the indices of the coordinates in CartesianSchrodinger.
-    """
-
-    T = 0
-    X = 1
-    Y = 2
-    Z = 3
-
-
-class CartesianInitialCondition(InitialCondition):
-    """
-    Class for defining the initial conditions of the quantum system in Cartesian coordinates.
-    """
-
-    def get_initial_values(self, X_0: torch.Tensor) -> torch.Tensor:
-        """
-        Get the initial function values for the initial condition in Cartesian coordinates.
-        """
-        dim = X_0.shape[1]
-        if dim == 2:
-            psi_R = self.psi_R(X_0[:, CartesianCoordinates.T], X_0[:, CartesianCoordinates.X])
-            psi_I = self.psi_I(X_0[:, CartesianCoordinates.T], X_0[:, CartesianCoordinates.X])
-        elif dim == 3:
-            psi_R = self.psi_R(
-                X_0[:, CartesianCoordinates.T], X_0[:, CartesianCoordinates.X], X_0[:, CartesianCoordinates.Y]
-            )
-            psi_I = self.psi_I(
-                X_0[:, CartesianCoordinates.T], X_0[:, CartesianCoordinates.X], X_0[:, CartesianCoordinates.Y]
-            )
-        elif dim == 4:
-            psi_R = self.psi_R(
-                X_0[:, CartesianCoordinates.T],
-                X_0[:, CartesianCoordinates.X],
-                X_0[:, CartesianCoordinates.Y],
-                X_0[:, CartesianCoordinates.Z],
-            )
-            psi_I = self.psi_I(
-                X_0[:, CartesianCoordinates.T],
-                X_0[:, CartesianCoordinates.X],
-                X_0[:, CartesianCoordinates.Y],
-                X_0[:, CartesianCoordinates.Z],
-            )
-        return torch.stack((psi_R, psi_I), dim=1)
+from ..math_utils import diff
+from ..abstract.schrodinger import Schrodinger
+from .initial_conditions import CartesianInitialCondition
+from .coordinates import CartesianCoordinates
 
 class CartesianSchrodinger(Schrodinger):
     """
@@ -72,7 +24,7 @@ class CartesianSchrodinger(Schrodinger):
         self,
         coordinates: list[np.array],
         V,
-        initial_conditions: list[InitialCondition],
+        initial_conditions: list[CartesianInitialCondition],
         hbar: float = 1.0,
         m: float = 1.0,
         hidden_size: int = 64,
