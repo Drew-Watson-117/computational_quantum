@@ -42,18 +42,15 @@ class CartesianSchrodinger(Schrodinger):
             hidden_size: The number of neurons in each hidden layer of the neural network.
             num_layers: The number of hidden layers in the neural network.
         """
-        super().__init__(V, initial_conditions, hbar, m, hidden_size, num_layers)
         if len(coordinates) < 2:
-            raise ValueError("At least two coordinate arrays are required.")
+            raise ValueError("At least two coordinate arrays are required (t & x).")
         elif len(coordinates) > 4:
-            raise ValueError("No more than four coordinate arrays are allowed.")
-        self.dimension = len(coordinates)
+            raise ValueError("No more than four coordinate arrays are allowed (t, x, y , z).")
         self.t = coordinates[CartesianCoordinates.T]
         self.x = coordinates[CartesianCoordinates.X]
         self.y = coordinates[CartesianCoordinates.Y] if len(coordinates) > 2 else None
         self.z = coordinates[CartesianCoordinates.Z] if len(coordinates) > 3 else None
-        self.inputs = self._create_model_inputs()
-        self._initialize_model()
+        super().__init__(coordinates, V, initial_conditions, hbar, m, hidden_size, num_layers)
 
     def _create_model_inputs(self) -> torch.Tensor:
         all_sets = []
@@ -72,6 +69,8 @@ class CartesianSchrodinger(Schrodinger):
                     for _y in self.y:
                         for _z in self.z:
                             all_sets.append([_t, _x, _y, _z])
+        else:
+            raise ValueError(f"Invalid number of dimensions. Must be between 2 and 4, but was {self.dimension}")
         return torch.tensor(all_sets, dtype=torch.float32, requires_grad=True)
 
     def get_solution(self) -> pd.DataFrame:
@@ -80,9 +79,9 @@ class CartesianSchrodinger(Schrodinger):
         """
         if not self.trained:
             raise ValueError("Model must be trained before retrieving solution.")
-        psi = self.model(self.inputs)
-        psi_R = psi[:, 0].detach().numpy()
-        psi_I = psi[:, 1].detach().numpy()
+        psi = self.psi(self.inputs)
+        psi_R = psi[:, 0]
+        psi_I = psi[:, 1]
         columns = ['t', 'x']
         if self.dimension > 2:
             columns.append('y')
