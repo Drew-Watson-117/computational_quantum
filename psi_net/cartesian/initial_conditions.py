@@ -41,4 +41,6 @@ class CartesianInitialCondition(InitialCondition):
                 X_0[:, CartesianCoordinates.Y],
                 X_0[:, CartesianCoordinates.Z],
             )
+        else:
+            raise ValueError(f"Invalid number of dimensions. Must be between 2 and 4, but was {dim}")
         return torch.stack((psi_R, psi_I), dim=1)
