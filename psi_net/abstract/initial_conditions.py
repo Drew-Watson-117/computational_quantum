@@ -2,25 +2,33 @@
 This module contains classes that define the initial conditions for the quantum system.
 """
 
-from typing import Optional
+from __future__ import annotations
 
 import torch
-from torch import nn
 
 from ..math_utils import diff
-from .input_normalizer import InputNormalizer
 
 
 class InitialCondition:
     """
     Class for defining the initial conditions of the quantum system.
     """
-    def __init__(self, coordinate: int, coordinate_value, psi_R, psi_I, derivative=False):
+
+    def __init__(
+        self,
+        coordinate: int,
+        coordinate_value,
+        psi_R,
+        psi_I,
+        derivative: bool = False,
+        weight: float = 1.0,
+    ):
         self.coordinate_value = coordinate_value
         self.coordinate = coordinate
         self.psi_R = psi_R
         self.psi_I = psi_I
         self.is_derivative = derivative
+        self.weight = float(weight)
 
     def get_initial_inputs(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -29,32 +37,41 @@ class InitialCondition:
         X_0 = X.clone()
         X_0[:, self.coordinate] = self.coordinate_value
         return X_0
-    
+
+    def _coerce_component(self, value, reference: torch.Tensor) -> torch.Tensor:
+        tensor = torch.as_tensor(value, dtype=reference.dtype, device=reference.device)
+        if tensor.ndim == 0:
+            tensor = tensor.expand(reference.shape[0])
+        return tensor
+
     def get_initial_values(self, X_0: torch.Tensor) -> torch.Tensor:
         """
         Get the initial function values for the initial condition.
         """
-        raise NotImplementedError("Initial function values must be implemented in subclass.")
+        coordinates = [X_0[:, index] for index in range(X_0.shape[1])]
+        reference = coordinates[0]
+        psi_R = self._coerce_component(self.psi_R(*coordinates), reference)
+        psi_I = self._coerce_component(self.psi_I(*coordinates), reference)
+        return torch.stack((psi_R, psi_I), dim=1)
 
-    def _derivative(self, model: nn.Module, X_0: torch.Tensor) -> torch.Tensor:
+    def _derivative(self, model_fn, X_0: torch.Tensor) -> torch.Tensor:
         """
-        Calculate the derivative of the function at the initial condition.
-
-        TODO: This method may be incorrect. We may need to calculate the derivative first, and then evaluate it at the initial condition, rather than evaluating the function at the initial condition and then calculating the derivative.
+        Calculate component-wise derivatives at the initial condition.
         """
-        predicted_values = model(X_0)
-        predicted_derivative = diff(predicted_values, X_0, self.coordinate)
-        return predicted_derivative
+        X_0 = X_0.clone().requires_grad_(True)
+        predicted_values = model_fn(X_0)
+        predicted_real_derivative = diff(predicted_values[:, 0], X_0, self.coordinate)
+        predicted_imag_derivative = diff(predicted_values[:, 1], X_0, self.coordinate)
+        return torch.stack((predicted_real_derivative, predicted_imag_derivative), dim=1)
 
-    def loss(self, model: nn.Module, X: torch.Tensor, input_normalizer: Optional[InputNormalizer] = None) -> torch.Tensor:
+    def loss(self, model_fn, X: torch.Tensor) -> torch.Tensor:
         """
         Calculate the loss for the initial condition.
         """
         X_0 = self.get_initial_inputs(X)
         initial_values = self.get_initial_values(X_0)
-        X_0_model = input_normalizer.normalize(X_0) if input_normalizer is not None else X_0
         if self.is_derivative:
-            predicted_derivatives = self._derivative(model, X_0_model)
-            return torch.nn.MSELoss()(predicted_derivatives, initial_values)
-        predicted_values = model(X_0_model)
-        return torch.nn.MSELoss()(predicted_values, initial_values)
+            predicted_derivatives = self._derivative(model_fn, X_0)
+            return self.weight * torch.nn.MSELoss()(predicted_derivatives, initial_values)
+        predicted_values = model_fn(X_0)
+        return self.weight * torch.nn.MSELoss()(predicted_values, initial_values)
